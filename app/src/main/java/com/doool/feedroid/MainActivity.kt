@@ -3,11 +3,10 @@ package com.doool.feedroid
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.Button
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.Surface
 import androidx.compose.material.Text
@@ -15,8 +14,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.doool.feedroid.service.Feed
 import com.doool.feedroid.service.FeedService
 import com.doool.feedroid.ui.theme.AndroidFeedTheme
 import com.tickaroo.tikxml.TikXml
@@ -55,35 +56,98 @@ object AppRetrofit {
     }
 }
 
-data class FeedGroup(
-    val title: String,
-    val updated: String,
-    val items: List<FeedModel>
+data class LibraryGroup(
+    val group: String,
+    val items: List<Library>
 )
 
-data class FeedModel(
+data class Library(
+    val library: String,
+    val items: List<ReleaseData>
+)
+
+data class ReleaseData(
+    val group: String,
     val name: String,
+    val version: String,
+    val updated: String,
     val url: String,
 )
 
+enum class SortType {
+    Date, Group
+}
+
 class FeedViewModel constructor(private val service: FeedService) : ViewModel() {
 
-    val feedGroupList = mutableStateListOf<FeedGroup>()
+    val feedGroupList = mutableStateListOf<LibraryGroup>()
+    private val sortType = MutableLiveData<SortType>(SortType.Group)
 
     fun load() {
-        feedGroupList
         viewModelScope.launch {
             val feed = service.getFeed()
 
-            feedGroupList.addAll(feed.entry.map {
-                val items = it.content.removeSurrounding("<ul>", "</ul>")
-                    .split("\n").mapNotNull {
-                        val feed = Regex("<li><a href=\"(.*)\">(.*)</a>").find(it)
-                        feed?.let { FeedModel(feed.groupValues[2], feed.groupValues[1]) }
-                    }
-                FeedGroup(it.title, it.updated, items)
-            })
+            feedGroupList.clear()
+            feedGroupList.addAll(
+//                when (sortType.value) {
+//                    SortType.Date -> loadSortedByDate(feed)
+//                    SortType.Group -> loadSortedByGroup(feed)
+//                    else -> loadSortedByDate(feed)
+//                }
+                loadSortedByGroup(feed)
+            )
         }
+    }
+
+    fun SetSortType(sortType: SortType) {
+        this.sortType.postValue(sortType)
+        load()
+    }
+
+//    private fun loadSortedByDate(feed: Feed): List<LibraryGroup> {
+//        return feed.entry.map { entry ->
+//            val items = parseReleaseDataFromHtml(entry.content, entry.updated)
+//            LibraryGroup(entry.title, items)
+//        }
+//    }
+
+    private fun loadSortedByGroup(feed: Feed): List<LibraryGroup> {
+        val all = feed.entry.flatMap { entry ->
+            parseReleaseDataFromHtml(entry.content, entry.updated)
+        }
+
+        val library = all.groupBy { it.name }.map {
+            Library(it.key, it.value)
+        }
+
+        return library.groupBy { parseGroup(it.library) }.map {
+            LibraryGroup(it.key, it.value)
+        }
+    }
+
+    private fun parseGroup(library: String): String {
+        return  library.split(" ", "-").first()
+    }
+
+    private fun parseReleaseDataFromHtml(html: String, updatedDate: String): List<ReleaseData> {
+        return html.removeSurrounding("<ul>", "</ul>")
+            .split("\n").mapNotNull {
+                val feed = Regex("<li><a href=\"(.*)\">(.*)</a>").find(it)
+
+                feed?.let {
+                    val item = feed.groupValues[2]
+
+                    val (name, version) = if (item.contains("Version")) {
+                        feed.groupValues[2].split("Version")
+                    } else {
+                        val list = item.split(" ")
+                        listOf(list.dropLast(1).reduce { acc, s -> "$acc $s" }, list.last())
+                    }
+
+                    val group = parseGroup(name)
+                    ReleaseData(group, name, version, updatedDate, feed.groupValues[1])
+                }
+            }
     }
 }
 
@@ -103,13 +167,29 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val feedGroups = viewModel.feedGroupList
 
-                    LazyColumn {
-                        feedGroups.forEach {
-                            item {
-                                FeedHeader(title = it.title)
+                    Column {
+                        Row() {
+                            Button(onClick = { viewModel.SetSortType(SortType.Date) }) {
+
                             }
-                            items(it.items) {
-                                FeedItem(feedModel = it)
+                            Button(onClick = { viewModel.SetSortType(SortType.Group) }) {
+
+                            }
+                        }
+
+                        LazyColumn {
+                            feedGroups.forEach {
+                                item {
+                                    FeedHeader(title = it.group)
+                                }
+                                it.items.forEach {
+                                    item {
+                                        FeedHeader(title = it.library)
+                                    }
+                                    items(it.items){
+                                        FeedItem(it)
+                                    }
+                                }
                             }
                         }
                     }
@@ -130,6 +210,8 @@ private fun FeedHeader(title: String) {
 
 
 @Composable
-private fun FeedItem(feedModel: FeedModel) {
-    Text(text = feedModel.name)
+private fun FeedItem(releaseData: ReleaseData) {
+//    Text(text = releaseData.group)
+//    Text(text = releaseData.name)
+    Text(text = releaseData.version)
 }
