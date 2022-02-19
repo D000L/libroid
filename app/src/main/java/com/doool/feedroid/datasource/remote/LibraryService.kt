@@ -1,11 +1,11 @@
-package com.doool.feedroid.service
+package com.doool.feedroid.datasource.remote
 
 import com.tickaroo.tikxml.annotation.Element
 import com.tickaroo.tikxml.annotation.PropertyElement
 import com.tickaroo.tikxml.annotation.Xml
 import retrofit2.http.GET
 
-interface FeedService {
+interface LibraryService {
 
     @GET("/feeds/androidx-release-notes.xml")
     suspend fun getFeed(): Feed

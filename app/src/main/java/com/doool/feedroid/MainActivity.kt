@@ -17,44 +17,14 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.doool.feedroid.service.Feed
-import com.doool.feedroid.service.FeedService
+import com.doool.feedroid.datasource.local.AppDatabase
+import com.doool.feedroid.datasource.local.LibraryEntity
+import com.doool.feedroid.datasource.remote.AppRetrofit
+import com.doool.feedroid.datasource.repository.LibraryRepository
+import com.doool.feedroid.datasource.repository.LibraryRepositoryImpl
 import com.doool.feedroid.ui.theme.AndroidFeedTheme
-import com.tickaroo.tikxml.TikXml
-import com.tickaroo.tikxml.retrofit.TikXmlConverterFactory
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
-import retrofit2.Retrofit
 
-object AppRetrofit {
-
-    private var instance: Retrofit? = null
-
-    private fun newInstance(): Retrofit {
-        instance?.let {
-            return it
-        } ?: run {
-            val newRetrofit = Retrofit.Builder()
-                .baseUrl("https://developer.android.com")
-                .addConverterFactory(
-                    TikXmlConverterFactory.create(
-                        TikXml.Builder().exceptionOnUnreadXml(false).build()
-                    )
-                )
-                .client(OkHttpClient.Builder().addInterceptor(HttpLoggingInterceptor().apply {
-                    level = HttpLoggingInterceptor.Level.BODY
-                }).build())
-                .build()
-            instance = newRetrofit
-            return newRetrofit
-        }
-    }
-
-    fun getFeedService(): FeedService {
-        return newInstance().create(FeedService::class.java)
-    }
-}
 
 data class LibraryGroup(
     val group: String,
@@ -63,29 +33,27 @@ data class LibraryGroup(
 
 data class Library(
     val library: String,
-    val items: List<ReleaseData>
-)
-
-data class ReleaseData(
-    val group: String,
-    val name: String,
-    val version: String,
-    val updated: String,
-    val url: String,
+    val items: List<LibraryEntity>
 )
 
 enum class SortType {
     Date, Group
 }
 
-class FeedViewModel constructor(private val service: FeedService) : ViewModel() {
+class FeedViewModel constructor(private val libraryRepository: LibraryRepository) : ViewModel() {
 
     val feedGroupList = mutableStateListOf<LibraryGroup>()
     private val sortType = MutableLiveData<SortType>(SortType.Group)
 
+    init {
+        viewModelScope.launch {
+            libraryRepository.updateLibrary()
+        }
+    }
+
     fun load() {
         viewModelScope.launch {
-            val feed = service.getFeed()
+            val libraries = libraryRepository.getAllLibrary()
 
             feedGroupList.clear()
             feedGroupList.addAll(
@@ -94,7 +62,7 @@ class FeedViewModel constructor(private val service: FeedService) : ViewModel() 
 //                    SortType.Group -> loadSortedByGroup(feed)
 //                    else -> loadSortedByDate(feed)
 //                }
-                loadSortedByGroup(feed)
+                loadSortedByGroup(libraries)
             )
         }
     }
@@ -111,13 +79,36 @@ class FeedViewModel constructor(private val service: FeedService) : ViewModel() 
 //        }
 //    }
 
-    private fun loadSortedByGroup(feed: Feed): List<LibraryGroup> {
-        val all = feed.entry.flatMap { entry ->
-            parseReleaseDataFromHtml(entry.content, entry.updated)
-        }
+    enum class VersionState(val order: Int) {
+        Release(0), Rc(1), Beta(2), Alpha(3)
+    }
 
-        val library = all.groupBy { it.name }.map {
-            Library(it.key, it.value)
+    data class Version(val number: Int, val state: VersionState, val code: Int?) :
+        Comparable<Version> {
+
+        override fun compareTo(other: Version): Int {
+            return if (number == other.number) {
+                if (state == other.state) compareValues(other.code, code)
+                else compareValues(state.order, other.state.order)
+            } else compareValues(other.number, number)
+        }
+    }
+
+    private fun parseVersion(version: String): Version {
+        val number = version.split("-")[0].split(".").joinToString("").toInt()
+
+        val (state, code) = version.split("-").getOrNull(1)?.let { string ->
+            val state = VersionState.values().first { string.contains(it.name.lowercase()) }
+            val code = string.removePrefix(state.name.lowercase()).toInt()
+            Pair(state, code)
+        } ?: Pair(VersionState.Release, null)
+
+        return Version(number, state, code)
+    }
+
+    private fun loadSortedByGroup(libraries: List<LibraryEntity>): List<LibraryGroup> {
+        val library = libraries.groupBy { it.name }.map {
+            Library(it.key, it.value.sortedBy { parseVersion(it.version) })
         }
 
         return library.groupBy { parseGroup(it.library) }.map {
@@ -126,34 +117,20 @@ class FeedViewModel constructor(private val service: FeedService) : ViewModel() 
     }
 
     private fun parseGroup(library: String): String {
-        return  library.split(" ", "-").first()
-    }
-
-    private fun parseReleaseDataFromHtml(html: String, updatedDate: String): List<ReleaseData> {
-        return html.removeSurrounding("<ul>", "</ul>")
-            .split("\n").mapNotNull {
-                val feed = Regex("<li><a href=\"(.*)\">(.*)</a>").find(it)
-
-                feed?.let {
-                    val item = feed.groupValues[2]
-
-                    val (name, version) = if (item.contains("Version")) {
-                        feed.groupValues[2].split("Version")
-                    } else {
-                        val list = item.split(" ")
-                        listOf(list.dropLast(1).reduce { acc, s -> "$acc $s" }, list.last())
-                    }
-
-                    val group = parseGroup(name)
-                    ReleaseData(group, name, version, updatedDate, feed.groupValues[1])
-                }
-            }
+        return library.split(" ", "-").first()
     }
 }
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel = FeedViewModel(AppRetrofit.getFeedService())
+    private val viewModel by lazy {
+        FeedViewModel(
+            LibraryRepositoryImpl(
+                AppDatabase.getInstance(application).libraryDao(),
+                AppRetrofit.getFeedService()
+            )
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -168,7 +145,7 @@ class MainActivity : ComponentActivity() {
                     val feedGroups = viewModel.feedGroupList
 
                     Column {
-                        Row() {
+                        Row {
                             Button(onClick = { viewModel.SetSortType(SortType.Date) }) {
 
                             }
@@ -186,7 +163,7 @@ class MainActivity : ComponentActivity() {
                                     item {
                                         FeedHeader(title = it.library)
                                     }
-                                    items(it.items){
+                                    items(it.items) {
                                         FeedItem(it)
                                     }
                                 }
@@ -210,7 +187,7 @@ private fun FeedHeader(title: String) {
 
 
 @Composable
-private fun FeedItem(releaseData: ReleaseData) {
+private fun FeedItem(releaseData: LibraryEntity) {
 //    Text(text = releaseData.group)
 //    Text(text = releaseData.name)
     Text(text = releaseData.version)
