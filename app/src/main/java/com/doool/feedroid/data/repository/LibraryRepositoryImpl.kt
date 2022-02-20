@@ -1,8 +1,8 @@
 package com.doool.feedroid.data.repository
 
+import com.doool.feedroid.data.datasource.entity.LibraryEntity
+import com.doool.feedroid.data.datasource.entity.toModel
 import com.doool.feedroid.data.datasource.local.LibraryDao
-import com.doool.feedroid.data.datasource.local.LibraryEntity
-import com.doool.feedroid.data.datasource.local.toModel
 import com.doool.feedroid.data.datasource.remote.LibraryService
 import com.doool.feedroid.domain.model.LibraryModel
 import com.doool.feedroid.domain.repository.LibraryRepository

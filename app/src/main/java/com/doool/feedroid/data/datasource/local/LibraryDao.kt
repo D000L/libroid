@@ -1,6 +1,7 @@
 package com.doool.feedroid.data.datasource.local
 
 import androidx.room.*
+import com.doool.feedroid.data.datasource.entity.LibraryEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao

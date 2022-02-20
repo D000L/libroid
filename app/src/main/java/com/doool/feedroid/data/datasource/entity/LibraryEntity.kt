@@ -1,4 +1,4 @@
-package com.doool.feedroid.data.datasource.local
+package com.doool.feedroid.data.datasource.entity
 
 import androidx.room.Entity
 import com.doool.feedroid.domain.model.LibraryModel
