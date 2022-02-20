@@ -1,10 +1,8 @@
 package com.doool.feedroid.presentation
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowRight
@@ -13,16 +11,14 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.navigation.NavController
 import com.doool.feedroid.domain.model.LibraryModel
 import com.doool.feedroid.domain.model.Version
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun History(viewModel: LibraryViewModel, library: String, navController: NavController) {
+fun History(viewModel: LibraryViewModel, library: String, onClickItem: (String) -> Unit) {
     Box(
         Modifier.padding(top = 16.dp)
     ) {
@@ -32,9 +28,7 @@ fun History(viewModel: LibraryViewModel, library: String, navController: NavCont
             Spacer(modifier = Modifier.height(16.dp))
             LazyColumn(contentPadding = PaddingValues(bottom = 20.dp)) {
                 items(history) {
-                    HistoryItem(it) {
-                        navController.navigate("web/${it.url}")
-                    }
+                    HistoryItem(it) { onClickItem(it.url) }
                 }
             }
         }

@@ -1,5 +1,7 @@
 package com.doool.feedroid.presentation
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -177,7 +179,13 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 val library = it.arguments?.getString("library") ?: ""
 
-                                History(viewModel, library, navController)
+                                History(viewModel, library){ url->
+                                    val browserIntent = Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse(url)
+                                    )
+                                    startActivity(browserIntent)
+                                }
                             }
                         }
                     }
