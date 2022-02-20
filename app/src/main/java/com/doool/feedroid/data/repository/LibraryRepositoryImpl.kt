@@ -3,10 +3,12 @@ package com.doool.feedroid.data.repository
 import com.doool.feedroid.data.datasource.local.LibraryDao
 import com.doool.feedroid.data.datasource.local.LibraryEntity
 import com.doool.feedroid.data.datasource.local.toModel
-import com.doool.feedroid.domain.model.LibraryModel
 import com.doool.feedroid.data.datasource.remote.LibraryService
+import com.doool.feedroid.domain.model.LibraryModel
 import com.doool.feedroid.domain.repository.LibraryRepository
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 class LibraryRepositoryImpl constructor(
@@ -14,13 +16,13 @@ class LibraryRepositoryImpl constructor(
     private val remote: LibraryService
 ) : LibraryRepository {
 
-    override suspend fun getAllLibrary(group: String?, name: String?): List<LibraryModel> {
+    override fun getAllLibrary(group: String?, name: String?): Flow<List<LibraryModel>> {
         return (when {
             group != null -> local.getAllByGroup(group)
             name != null -> local.getAllByName(name)
             else -> local.getAll()
         }).map {
-            it.toModel()
+            it.map { it.toModel() }
         }
     }
 
