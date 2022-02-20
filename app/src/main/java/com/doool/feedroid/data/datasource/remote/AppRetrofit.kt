@@ -1,4 +1,4 @@
-package com.doool.feedroid.datasource.remote
+package com.doool.feedroid.data.datasource.remote
 
 import com.tickaroo.tikxml.TikXml
 import com.tickaroo.tikxml.retrofit.TikXmlConverterFactory

@@ -12,7 +12,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Feedroid">
         <activity
-            android:name="com.doool.feedroid.MainActivity"
+            android:name="com.doool.feedroid.presentation.MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:theme="@style/Theme.Feedroid">

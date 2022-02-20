@@ -1,4 +1,4 @@
-package com.doool.feedroid.datasource.local
+package com.doool.feedroid.data.datasource.local
 
 import android.content.Context
 import androidx.room.Database

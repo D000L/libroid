@@ -1,4 +1,4 @@
-package com.doool.feedroid.ui.theme
+package com.doool.feedroid.presentation.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
