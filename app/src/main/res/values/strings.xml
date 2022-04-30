@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Libroid</string>
+    <string name="widget_description">description</string>
 </resources>
